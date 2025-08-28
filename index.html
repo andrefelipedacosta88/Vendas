@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Vendas Catarinense</title>
+  <meta name="theme-color" content="#0f172a" />
+  <style>
+    :root{
+      --bg:#0b1020; --bg-soft:#121a35; --bg-card:#0f172a; --text:#e5e7eb; --muted:#9ca3af; --accent:#22d3ee; --ok:#10b981; --warn:#f59e0b; --bad:#ef4444;
+      --shadow: 0 10px 30px rgba(0,0,0,.25);
+      --radius:18px;
+    }
+    @media (prefers-color-scheme: light){
+      :root{ --bg:#f8fafc; --bg-soft:#eef2ff; --bg-card:#ffffff; --text:#0f172a; --muted:#475569; --accent:#0ea5e9; }
+    }
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{ margin:0; font: 500 15px/1.5 system-ui,-apple-system,Segoe UI,Roboto; color:var(--text); background: linear-gradient(180deg,var(--bg) 0%, var(--bg-soft) 100%); }
+    .container{ max-width:980px; margin-inline:auto; padding: clamp(12px,2vw,24px); }
+
+    header{ display:flex; align-items:center; gap:12px; justify-content:space-between; padding: 6px 2px 16px }
+    .title{ display:flex; align-items:center; gap:10px; }
+    .title .logo{ width:36px; height:36px; display:grid; place-items:center; background:radial-gradient(circle at 30% 30%, #22d3ee, #0ea5e9); color:white; border-radius:12px; box-shadow:var(--shadow); font-weight:800 }
+    h1{ font-size: clamp(18px, 4vw, 24px); margin:0 }
+    .actions{ display:flex; gap:8px; align-items:center }
+    button, .btn{ appearance:none; border:0; border-radius:12px; padding:10px 14px; background:var(--bg-card); color:var(--text); box-shadow:var(--shadow); cursor:pointer; font-weight:700 }
+    button:active{ transform: translateY(1px) }
+    .btn-accent{ background: linear-gradient(135deg, var(--accent), #7dd3fc); color:#041014 }
+
+    .card{ background:var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow); padding:16px; }
+    .grid{ display:grid; gap:12px }
+    .grid.kpis{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+    @media (min-width: 760px){ .grid.kpis{ grid-template-columns: repeat(4, minmax(0,1fr)); } }
+    .kpi{ background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.04)); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:6px; position:relative; overflow:hidden }
+    .kpi small{ color:var(--muted); font-size:12px }
+    .kpi .value{ font-size: clamp(16px, 5vw, 22px); font-weight:900 }
+    .kpi .delta{ font-size:12px; font-weight:800 }
+
+    .bars{ display:grid; grid-template-columns: 1fr; gap:10px; margin-top:6px }
+    .bar{ background:rgba(255,255,255,.06); border-radius:10px; position:relative; overflow:hidden; height:12px }
+    .bar>i{ display:block; height:100%; background: linear-gradient(90deg, var(--accent), #60a5fa); border-radius:10px }
+    .bar .lbl{ display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px; color:var(--muted) }
+
+    .muted{ color: var(--muted) }
+    .inline-filter{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .inline-filter input{ flex:1; min-width: 200px; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:transparent; color:var(--text) }
+
+    .footer{ margin: 20px 2px; font-size:12px; color:var(--muted) }
+    .pill{ font-size:11px; padding:4px 8px; border-radius:999px; background: rgba(255,255,255,.08) }
+    .ok{ color:var(--ok) } .bad{ color:var(--bad) } .warn{ color:var(--warn) }
+    .notice{ padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.06); color:var(--muted); font-size:12px; display:none }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title">
+        <div class="logo" aria-hidden>KPIs</div>
+        <h1>Vendas Catarinense – KPIs</h1>
+      </div>
+      <div class="actions">
+        <button id="btn-refresh" class="btn-accent" title="Atualizar">Atualizar</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="inline-filter">
+        <label class="muted" for="celular">Celular:</label>
+        <input id="celular" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="Ex.: 48999999999">
+        <button id="btn-apply">Aplicar</button>
+      </div>
+    </section>
+
+    <div id="notice" class="notice"></div>
+
+    <section class="grid kpis" id="kpis"></section>
+
+    <section class="card" style="margin-top:12px">
+      <div class="muted" style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Progresso</strong>
+        <span class="pill" id="updatedAt">—</span>
+      </div>
+      <div class="bars" id="bars"></div>
+    </section>
+
+    <div class="footer">Feito para celular • layout responsivo • formatação pt-BR</div>
+  </div>
+
+<script>
+(function(){
+  const BASE_URL = "https://sic.catarinensepharma.com.br/faturamento/rest/api/v001/nota-venda/GetFaturamento?celular=";
+
+  const $ = (s, el=document)=>el.querySelector(s);
+  const fmtBRL = (n)=> new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' }).format(Number(n||0));
+  const fmtPct = (n)=> (Number.isFinite(n) ? (n.toFixed(1).replace('.',','))+'%' : '—');
+
+  // Celular via query string (?celular=) ou campo inline
+  const params = new URLSearchParams(location.search);
+  const celularQS = (params.get('celular')||'').trim();
+
+  const state = {
+    celular: celularQS,
+    lastData: null,
+  };
+
+  //const SAMPLE = [{"vl-meta":0.0,"vl-faturado":20945918.87,"vl-tot-car":10162004.824059,"vl-carteira":2941370.733971,"vl-falta":1397900.316476,"vl-exped":7220634.090088,"pc-meta":0.0,"vl-total":0.0,"pc-total":0.0}];
+
+  const btnRefresh  = $('#btn-refresh');
+  const btnApply    = $('#btn-apply');
+  const inputCel    = $('#celular');
+  const elNotice    = $('#notice');
+
+  function setUpdatedAt(){ $('#updatedAt').textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR'); }
+  function showNotice(msg){ elNotice.textContent = msg; elNotice.style.display = 'block'; }
+  function hideNotice(){ elNotice.style.display = 'none'; }
+  function buildURL(){ return BASE_URL + encodeURIComponent(state.celular || ''); }
+
+  function normalizeResponse(json){
+    if (Array.isArray(json)) return json[0] || {};
+    if (json && Array.isArray(json.data)) return json.data[0] || {};
+    return (json && typeof json === 'object') ? json : {};
+  }
+
+  function asNum(v){
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    if (typeof v === 'string'){
+      const s = v.replace(/\./g,'').replace(',','.');
+      const n = Number(s);
+      if (Number.isFinite(n)) return n;
+    }
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  async function fetchAndRender(){
+    if(!(state.celular||'').trim()){
+      showNotice('Informe o telefone celular no campo acima ou passe ?celular= na URL.');
+      renderAll(SAMPLE[0]);
+      return;
+    }
+    hideNotice();
+    const url = buildURL();
+    try{
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if(!res.ok){
+        const txt = await res.text().catch(()=>'');
+        showNotice('Erro HTTP '+res.status+' ao buscar a API. Corpo: ' + (txt||'(vazio)'));
+        renderAll(SAMPLE[0]);
+        return;
+      }
+      const raw = await res.json();
+      const obj = normalizeResponse(raw);
+      state.lastData = obj;
+      renderAll(obj);
+    }catch(err){
+      showNotice('Falha ao buscar a API. Detalhe: ' + (err && err.message ? err.message : String(err)));
+      renderAll(SAMPLE[0]);
+    }
+  }
+
+  function renderAll(obj){
+    renderKPIs(obj);
+    renderBars(obj);
+    setUpdatedAt();
+  }
+
+  function renderKPIs(d){
+    const meta      = asNum(d['vl-meta']);
+    const faturado  = asNum(d['vl-faturado']);
+    const carteira  = asNum(d['vl-carteira']);
+    const falta     = asNum(d['vl-falta']);
+    const exped     = asNum(d['vl-exped']);
+    const totcar    = asNum(d['vl-tot-car']);
+
+    // KPI combinado correto: Faturado + Total Carr.
+    const combinado = faturado + totcar;
+    const pctAtt    = meta > 0 ? (combinado / meta * 100) : NaN;
+
+    const items = [
+      { key:'Meta',               value: fmtBRL(meta),        delta:'',                         cls: meta>0? 'ok':'warn' }, // sem % abaixo da meta
+      { key:'Faturado + Carteira',  value: fmtBRL(combinado),   delta: Number.isFinite(pctAtt)? fmtPct(pctAtt): '—', cls: 'ok' },
+      { key:'Faturado',           value: fmtBRL(faturado),    delta: meta>0? fmtPct(faturado/meta*100):'—', cls:'ok' },
+      { key:'Total Carteira',        value: fmtBRL(totcar),      delta:'',                         cls:'' },
+      { key:'Carteira + Falta',           value: fmtBRL(carteira),    delta:'',                         cls:'' },
+      { key:'Em Falta',              value: fmtBRL(falta),       delta:'',                         cls:'warn' },
+      { key:'Expedição',           value: fmtBRL(exped),       delta:'',                         cls:'' },
+    ];
+
+    const grid = $('#kpis');
+    grid.innerHTML = items.map(it=>`
+      <article class="kpi">
+        <small>${it.key}</small>
+        <div class="value">${it.value}</div>
+        ${it.delta? `<div class="delta ${it.cls}">${it.delta}</div>`:''}
+      </article>
+    `).join('');
+  }
+
+  function renderBars(d){
+    const meta   = asNum(d['vl-meta']);
+    const fat    = asNum(d['vl-faturado']);
+    const totcar = asNum(d['vl-tot-car']);
+    const cart   = asNum(d['vl-carteira']);
+    const exped  = asNum(d['vl-exped']);
+    const falta  = asNum(d['vl-falta']);
+
+    // Barra de progresso principal: (Faturado + Total Carr.) vs Meta
+    const combinado = fat + totcar;
+    const pctAtt = meta>0 ? Math.max(0, Math.min(100, (combinado/meta)*100)) : 0;
+    
+	let html = `
+      <div style="visible=false">	  
+        <div class="lbl"><span>Meta</span><span> (${fmtPct(pctAtt)})</span></div>
+        <div class="bar"><i style="width:${pctAtt}%"></i></div>
+      </div>`;
+
+    // Barras auxiliares (comparativas)
+    const max = Math.max(meta, combinado, 1);
+    const bars = [
+      { label:'Meta ',             val: meta },
+      { label:'Faturamento + Carteira ',val: combinado },
+    ];
+
+    html += bars.map(b=>{
+      const pct = Math.max(0, Math.min(100, (b.val/max)*100));
+      return `
+        <div>
+          <div class="lbl"><span>${b.label}</span><span>${fmtBRL(b.val)}</span></div>
+          <div class="bar"><i style="width:${pct}%"></i></div>
+        </div>`;
+    }).join('');
+
+    document.querySelector('#bars').innerHTML = html;
+  }
+
+  // events
+  btnRefresh.addEventListener('click', fetchAndRender);
+  btnApply.addEventListener('click', ()=>{
+    state.celular = (inputCel.value||'').trim();
+    const u = new URL(location.href);
+    if(state.celular){ u.searchParams.set('celular', state.celular); } else { u.searchParams.delete('celular'); }
+    history.replaceState({}, '', u.toString());
+    fetchAndRender();
+  });
+
+  // init
+  inputCel.value = state.celular || '';
+  fetchAndRender();
+})();
+</script>
+</body>
+</html>

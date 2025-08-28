@@ -60,15 +60,14 @@
         <h1>Vendas Catarinense – KPIs</h1>
       </div>
       <div class="actions">
-        <button id="btn-refresh" class="btn-accent" title="Atualizar">Atualizar</button>
-      </div>
+</div>
     </header>
 
     <section class="card">
       <div class="inline-filter">
         <label class="muted" for="celular">Celular:</label>
         <input id="celular" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="Ex.: 48999999999">
-        <button id="btn-apply">Aplicar</button>
+        <button id="btn-apply">Atualizar</button>
       </div>
     </section>
 
@@ -105,8 +104,6 @@
   };
 
   //const SAMPLE = [{"vl-meta":0.0,"vl-faturado":20945918.87,"vl-tot-car":10162004.824059,"vl-carteira":2941370.733971,"vl-falta":1397900.316476,"vl-exped":7220634.090088,"pc-meta":0.0,"vl-total":0.0,"pc-total":0.0}];
-
-  const btnRefresh  = $('#btn-refresh');
   const btnApply    = $('#btn-apply');
   const inputCel    = $('#celular');
   const elNotice    = $('#notice');
@@ -235,7 +232,6 @@
   }
 
   // events
-  btnRefresh.addEventListener('click', fetchAndRender);
   btnApply.addEventListener('click', ()=>{
     state.celular = (inputCel.value||'').trim();
     const u = new URL(location.href);

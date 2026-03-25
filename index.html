@@ -88,7 +88,7 @@
 
 <script>
 (function(){
-  const BASE_URL = "https://sic.catarinensepharma.com.br/faturamento/rest/api/v001/nota-venda/GetFaturamento?celular=";
+  const BASE_URL = "https://sic.catarinensepharma.com.br/faturamento/rest/api/v001/nota-venda/GetFaturamento?nr-celular=";
 
   const $ = (s, el=document)=>el.querySelector(s);
   const fmtBRL = (n)=> new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' }).format(Number(n||0));
@@ -96,7 +96,7 @@
 
   // Celular via query string (?celular=) ou campo inline
   const params = new URLSearchParams(location.search);
-  const celularQS = (params.get('celular')||'').trim();
+  const celularQS = (params.get('nr-celular')||'').trim();
 
   const state = {
     celular: celularQS,
